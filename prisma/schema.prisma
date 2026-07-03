@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String            @id @default(cuid())
+  email        String            @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  memberships  WorkspaceMember[]
+  assets       Asset[]
+}
+
+model Workspace {
+  id        String            @id @default(cuid())
+  name      String
+  slug      String            @unique
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  members   WorkspaceMember[]
+  pages     Page[]
+  templates Template[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  role        Role      @default(OWNER)
+  createdAt   DateTime  @default(now())
+  userId      String
+  workspaceId String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+model Page {
+  id            String         @id @default(cuid())
+  title         String         @default("Untitled")
+  icon          String         @default("FileText")
+  content       Json
+  plainText     String         @default("")
+  position      Int            @default(0)
+  isFavorite    Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  workspaceId   String
+  parentId      String?
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent        Page?          @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children      Page[]         @relation("PageTree")
+  outgoingLinks PageRelation[] @relation("SourcePage")
+  incomingLinks PageRelation[] @relation("TargetPage")
+  assets        Asset[]
+
+  @@index([workspaceId, parentId, position])
+  @@index([workspaceId, plainText])
+}
+
+model PageRelation {
+  id        String       @id @default(cuid())
+  type      RelationType @default(LINK)
+  createdAt DateTime     @default(now())
+  sourceId  String
+  targetId  String
+  source    Page         @relation("SourcePage", fields: [sourceId], references: [id], onDelete: Cascade)
+  target    Page         @relation("TargetPage", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, targetId, type])
+}
+
+model Template {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  content     Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Asset {
+  id          String    @id @default(cuid())
+  fileName    String
+  mimeType    String
+  size        Int
+  url         String
+  createdAt   DateTime  @default(now())
+  userId      String
+  pageId      String?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page        Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+}
+
+enum Role {
+  OWNER
+  MEMBER
+}
+
+enum RelationType {
+  LINK
+  MENTION
+}

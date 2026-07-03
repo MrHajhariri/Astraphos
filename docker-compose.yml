@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: astraphos
+      POSTGRES_PASSWORD: astraphos
+      POSTGRES_DB: astraphos
+    ports:
+      - "5432:5432"
+    volumes:
+      - astraphos-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astraphos -d astraphos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://astraphos:astraphos@db:5432/astraphos?schema=public
+      AUTH_SECRET: replace-with-a-long-random-secret
+    ports:
+      - "3000:3000"
+    volumes:
+      - astraphos-uploads:/app/public/uploads
+    command: sh -c "npx prisma db push && npm start"
+
+volumes:
+  astraphos-db:
+  astraphos-uploads:
