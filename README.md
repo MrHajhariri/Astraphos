@@ -205,4 +205,4 @@ Later:
 
 ## License
 
-No license has been selected yet. Add a license before accepting external contributions or publishing packages.
+MIT
