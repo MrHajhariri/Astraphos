@@ -6,9 +6,7 @@ Astraphos is an open-source, AI-ready knowledge workspace for people who want to
 
 The MVP focuses on the core Notion-like foundation: authenticated workspaces, nested pages, rich-text editing, search, templates, relationships between pages, local uploads, PostgreSQL storage, and simple self-hosting.
 
-## Preview
 
-![Astraphos MVP workspace preview](public/screenshots/astraphos-mvp.png)
 
 ## Status
 
