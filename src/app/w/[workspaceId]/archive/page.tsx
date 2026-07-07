@@ -59,6 +59,7 @@ export default async function ArchivePage({ params }: { params: Promise<{ worksp
                   <form action={deletePageAction}>
                     <input type="hidden" name="workspaceId" value={workspaceId} />
                     <input type="hidden" name="pageId" value={page.id} />
+                    <input type="hidden" name="returnTo" value={`/w/${workspaceId}/archive`} />
                     <button className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Delete forever</button>
                   </form>
                 </div>

@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { VaultEditor } from "@/components/vault-editor";
 import { Backlinks, type Backlink } from "@/components/backlinks";
+import { VaultMetadataPanel } from "@/components/metadata-panel";
 import { deleteVaultFileAction } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -17,7 +19,9 @@ export default async function VaultFilePage({ params }: { params: Promise<{ work
       workspace: {
         include: {
           pages: { where: { archivedAt: null, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
-          vaultFiles: { orderBy: { updatedAt: "desc" } },
+          vaultFiles: { include: { tags: { include: { tag: true } } }, orderBy: { updatedAt: "desc" } },
+          vaultFolders: { orderBy: { name: "asc" } },
+          nodeTypes: { orderBy: { name: "asc" } },
         },
       },
     },
@@ -50,13 +54,17 @@ export default async function VaultFilePage({ params }: { params: Promise<{ work
       <section className="min-w-0 bg-white dark:bg-zinc-950">
         <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-2 dark:border-zinc-800">
           <div className="text-sm text-zinc-500">/vault/{file.fileName}</div>
-          <form action={deleteVaultFileAction}>
-            <input type="hidden" name="workspaceId" value={workspaceId} />
-            <input type="hidden" name="fileId" value={file.id} />
-            <button className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Delete</button>
-          </form>
+          <div className="flex gap-2">
+            <Link href={`/w/${workspaceId}/vault/${file.id}/export`} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Export</Link>
+            <form action={deleteVaultFileAction}>
+              <input type="hidden" name="workspaceId" value={workspaceId} />
+              <input type="hidden" name="fileId" value={file.id} />
+              <button className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Delete</button>
+            </form>
+          </div>
         </div>
         <VaultEditor workspaceId={workspaceId} file={{ id: file.id, title: file.title, fileName: file.fileName, content: file.content }} />
+        <VaultMetadataPanel workspaceId={workspaceId} file={file} folders={membership.workspace.vaultFolders} nodeTypes={membership.workspace.nodeTypes} />
         <Backlinks backlinks={backlinks} />
       </section>
     </main>

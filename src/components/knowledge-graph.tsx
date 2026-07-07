@@ -12,6 +12,9 @@ type GraphNode = {
   title: string;
   href: string;
   degree: number;
+  nodeType?: string | null;
+  folder?: string | null;
+  tags: string[];
 };
 
 type GraphLink = {
@@ -28,6 +31,12 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
   const [mode, setMode] = useState<GraphMode>("all");
   const [query, setQuery] = useState("");
   const [connectedOnly, setConnectedOnly] = useState(false);
+  const [tagFilter, setTagFilter] = useState("");
+  const [folderFilter, setFolderFilter] = useState("");
+  const [nodeTypeFilter, setNodeTypeFilter] = useState("");
+  const tags = useMemo(() => Array.from(new Set(nodes.flatMap((node) => node.tags))).sort(), [nodes]);
+  const folders = useMemo(() => Array.from(new Set(nodes.map((node) => node.folder).filter(Boolean) as string[])).sort(), [nodes]);
+  const nodeTypes = useMemo(() => Array.from(new Set(nodes.map((node) => node.nodeType).filter(Boolean) as string[])).sort(), [nodes]);
 
   const graphData = useMemo(() => {
     const visibleNodes = nodes.filter((node) => {
@@ -35,6 +44,9 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
       if (mode === "vault" && node.type !== "VAULT_FILE") return false;
       if (connectedOnly && node.degree === 0) return false;
       if (query && !node.title.toLowerCase().includes(query.toLowerCase())) return false;
+      if (tagFilter && !node.tags.includes(tagFilter)) return false;
+      if (folderFilter && node.folder !== folderFilter) return false;
+      if (nodeTypeFilter && node.nodeType !== nodeTypeFilter) return false;
       return true;
     });
     const visibleIds = new Set(visibleNodes.map((node) => node.id));
@@ -42,7 +54,7 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
       nodes: visibleNodes,
       links: links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target)),
     };
-  }, [connectedOnly, links, mode, nodes, query]);
+  }, [connectedOnly, folderFilter, links, mode, nodeTypeFilter, nodes, query, tagFilter]);
 
   const mostConnected = useMemo(() => [...nodes].sort((a, b) => b.degree - a.degree).slice(0, 8), [nodes]);
 
@@ -59,6 +71,18 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
             <button onClick={() => setConnectedOnly((value) => !value)} className={`rounded-full px-3 py-1.5 text-sm transition ${connectedOnly ? "bg-cyan-300 text-zinc-950" : "bg-white/10 text-zinc-200 hover:bg-white/15"}`}>
               Connected only
             </button>
+            <select value={nodeTypeFilter} onChange={(event) => setNodeTypeFilter(event.target.value)} className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white outline-none">
+              <option value="">All types</option>
+              {nodeTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+            <select value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white outline-none">
+              <option value="">All tags</option>
+              {tags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+            </select>
+            <select value={folderFilter} onChange={(event) => setFolderFilter(event.target.value)} className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white outline-none">
+              <option value="">All folders</option>
+              {folders.map((folder) => <option key={folder} value={folder}>{folder}</option>)}
+            </select>
           </div>
           <div className="flex gap-2">
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter graph..." className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white outline-none placeholder:text-zinc-400 focus:border-cyan-300" />

@@ -29,6 +29,9 @@ model Workspace {
   templates Template[]
   vaultFiles VaultFile[]
   knowledgeEdges KnowledgeEdge[]
+  tags      Tag[]
+  vaultFolders VaultFolder[]
+  nodeTypes NodeType[]
 }
 
 model WorkspaceMember {
@@ -56,15 +59,19 @@ model Page {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   workspaceId   String
+  nodeTypeId    String?
   parentId      String?
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  nodeType      NodeType?      @relation(fields: [nodeTypeId], references: [id], onDelete: SetNull)
   parent        Page?          @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
   children      Page[]         @relation("PageTree")
   outgoingLinks PageRelation[] @relation("SourcePage")
   incomingLinks PageRelation[] @relation("TargetPage")
   assets        Asset[]
+  tags          PageTag[]
 
   @@index([workspaceId, parentId, position])
+  @@index([workspaceId, nodeTypeId])
   @@index([workspaceId, archivedAt])
   @@index([workspaceId, deletedAt])
   @@index([workspaceId, plainText])
@@ -93,10 +100,87 @@ model VaultFile {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   workspaceId String
+  folderId    String?
+  nodeTypeId  String?
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folder      VaultFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  nodeType    NodeType? @relation(fields: [nodeTypeId], references: [id], onDelete: SetNull)
+  tags        VaultFileTag[]
 
   @@unique([workspaceId, fileName])
   @@index([workspaceId, title])
+  @@index([workspaceId, folderId])
+  @@index([workspaceId, nodeTypeId])
+}
+
+model VaultFolder {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String
+  color       String      @default("cyan")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  workspaceId String
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  files       VaultFile[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, name])
+}
+
+model Tag {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String
+  color       String         @default("violet")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workspaceId String
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pages       PageTag[]
+  vaultFiles  VaultFileTag[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, name])
+}
+
+model PageTag {
+  id     String @id @default(cuid())
+  pageId String
+  tagId  String
+  page   Page   @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, tagId])
+  @@index([tagId])
+}
+
+model VaultFileTag {
+  id          String    @id @default(cuid())
+  vaultFileId String
+  tagId       String
+  vaultFile   VaultFile @relation(fields: [vaultFileId], references: [id], onDelete: Cascade)
+  tag         Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([vaultFileId, tagId])
+  @@index([tagId])
+}
+
+model NodeType {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String
+  icon        String      @default("FileText")
+  color       String      @default("violet")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  workspaceId String
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pages       Page[]
+  vaultFiles  VaultFile[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, name])
 }
 
 model KnowledgeEdge {

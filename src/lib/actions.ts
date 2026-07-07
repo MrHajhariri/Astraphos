@@ -63,6 +63,16 @@ export async function signUpAction(_: unknown, formData: FormData) {
                   },
                 ],
               },
+              nodeTypes: {
+                create: [
+                  { name: "Note", slug: "note", icon: "FileText", color: "violet" },
+                  { name: "Markdown", slug: "markdown", icon: "FileCode", color: "cyan" },
+                  { name: "Character", slug: "character", icon: "User", color: "amber" },
+                  { name: "Location", slug: "location", icon: "MapPin", color: "emerald" },
+                  { name: "Project", slug: "project", icon: "Briefcase", color: "blue" },
+                  { name: "Concept", slug: "concept", icon: "Lightbulb", color: "fuchsia" },
+                ],
+              },
               pages: {
                 create: {
                   title: "Welcome to Astraphos",
@@ -244,14 +254,28 @@ export async function deletePageAction(formData: FormData) {
   const user = await requireUser();
   const workspaceId = String(formData.get("workspaceId") ?? "");
   const pageId = String(formData.get("pageId") ?? "");
+  const returnTo = String(formData.get("returnTo") ?? "");
   const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
   if (!membership) throw new Error("Workspace not found");
 
-  const page = await prisma.page.findFirst({ where: { id: pageId, workspaceId, archivedAt: { not: null } } });
-  if (!page) throw new Error("Archived page not found");
+  const page = await prisma.page.findFirst({ where: { id: pageId, workspaceId } });
+  if (!page) throw new Error("Page not found");
 
-  await prisma.page.delete({ where: { id: pageId } });
+  const pageIds = await getPageDescendantIds(workspaceId, pageId);
+  const nextPage = await prisma.page.findFirst({
+    where: { workspaceId, archivedAt: null, deletedAt: null, id: { notIn: pageIds } },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+
+  await prisma.$transaction([
+    prisma.knowledgeEdge.deleteMany({ where: { workspaceId, OR: [{ sourceType: "PAGE", sourceId: { in: pageIds } }, { targetType: "PAGE", targetId: { in: pageIds } }] } }),
+    prisma.page.delete({ where: { id: pageId } }),
+  ]);
+
   revalidatePath(`/w/${workspaceId}`);
+  if (returnTo) redirect(returnTo);
+  redirect(nextPage ? `/w/${workspaceId}/p/${nextPage.id}` : `/w/${workspaceId}/search`);
 }
 
 export async function reorderPagesAction(input: { workspaceId: string; parentId: string | null; orderedIds: string[] }) {
@@ -366,13 +390,7 @@ export async function createVaultFileAction(formData: FormData) {
   const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
   if (!membership) throw new Error("Workspace not found");
 
-  const baseFileName = `${slugify(title)}.md`;
-  let fileName = baseFileName;
-  let suffix = 2;
-  while (await prisma.vaultFile.findUnique({ where: { workspaceId_fileName: { workspaceId, fileName } }, select: { id: true } })) {
-    fileName = `${slugify(title)}-${suffix}.md`;
-    suffix += 1;
-  }
+  const fileName = await nextVaultFileName(workspaceId, `${title}.md`);
 
   const file = await prisma.vaultFile.create({
     data: {
@@ -421,6 +439,83 @@ export async function deleteVaultFileAction(formData: FormData) {
 
   revalidatePath(`/w/${workspaceId}/vault`);
   redirect(`/w/${workspaceId}/vault`);
+}
+
+export async function updatePageMetadataAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const pageId = String(formData.get("pageId") ?? "");
+  const nodeTypeId = String(formData.get("nodeTypeId") ?? "") || null;
+  const tagNames = String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean);
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  await syncTags(workspaceId, "PAGE", pageId, tagNames);
+  await prisma.page.update({ where: { id: pageId, workspaceId }, data: { nodeTypeId } });
+  revalidatePath(`/w/${workspaceId}/p/${pageId}`);
+}
+
+export async function updateVaultFileMetadataAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const fileId = String(formData.get("fileId") ?? "");
+  const nodeTypeId = String(formData.get("nodeTypeId") ?? "") || null;
+  const folderId = String(formData.get("folderId") ?? "") || null;
+  const tagNames = String(formData.get("tags") ?? "").split(",").map((tag) => tag.trim()).filter(Boolean);
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  await syncTags(workspaceId, "VAULT_FILE", fileId, tagNames);
+  await prisma.vaultFile.update({ where: { id: fileId, workspaceId }, data: { nodeTypeId, folderId } });
+  revalidatePath(`/w/${workspaceId}/vault/${fileId}`);
+}
+
+export async function createVaultFolderAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+  if (!name) throw new Error("Folder name is required");
+
+  await prisma.vaultFolder.create({ data: { name, slug: slugify(name), workspaceId } });
+  revalidatePath(`/w/${workspaceId}/vault`);
+}
+
+export async function importMarkdownFilesAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const files = formData.getAll("files");
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  for (const file of files) {
+    if (!(file instanceof File) || !file.name.endsWith(".md")) continue;
+    const content = await file.text();
+    const heading = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
+    const title = heading || file.name.replace(/\.md$/i, "");
+    const fileName = await nextVaultFileName(workspaceId, file.name.replace(/[^a-zA-Z0-9._-]/g, "-"));
+    const vaultFile = await prisma.vaultFile.create({
+      data: { title, fileName, content, plainText: markdownToPlainText(content), workspaceId },
+    });
+    await syncKnowledgeEdges({ workspaceId, sourceType: "VAULT_FILE", sourceId: vaultFile.id, text: content });
+  }
+
+  revalidatePath(`/w/${workspaceId}/vault`);
+}
+
+export async function createNodeTypeAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const color = String(formData.get("color") ?? "violet").trim() || "violet";
+  const icon = String(formData.get("icon") ?? "FileText").trim() || "FileText";
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership || membership.role !== "OWNER") throw new Error("Workspace not found");
+  if (!name) throw new Error("Node type name is required");
+
+  await prisma.nodeType.create({ data: { name, slug: slugify(name), color, icon, workspaceId } });
+  revalidatePath(`/w/${workspaceId}/settings`);
 }
 
 export async function uploadAssetAction(formData: FormData) {
@@ -505,4 +600,41 @@ async function syncKnowledgeEdges({ workspaceId, sourceType, sourceId, text }: {
       }),
     ),
   ]);
+}
+
+async function syncTags(workspaceId: string, targetType: "PAGE" | "VAULT_FILE", targetId: string, names: string[]) {
+  const uniqueNames = Array.from(new Set(names));
+  const tags = await Promise.all(
+    uniqueNames.map((name) =>
+      prisma.tag.upsert({
+        where: { workspaceId_slug: { workspaceId, slug: slugify(name) } },
+        update: { name },
+        create: { name, slug: slugify(name), workspaceId },
+      }),
+    ),
+  );
+
+  if (targetType === "PAGE") {
+    await prisma.$transaction([
+      prisma.pageTag.deleteMany({ where: { pageId: targetId } }),
+      ...tags.map((tag) => prisma.pageTag.create({ data: { pageId: targetId, tagId: tag.id } })),
+    ]);
+    return;
+  }
+
+  await prisma.$transaction([
+    prisma.vaultFileTag.deleteMany({ where: { vaultFileId: targetId } }),
+    ...tags.map((tag) => prisma.vaultFileTag.create({ data: { vaultFileId: targetId, tagId: tag.id } })),
+  ]);
+}
+
+async function nextVaultFileName(workspaceId: string, requestedName: string) {
+  const baseName = requestedName.endsWith(".md") ? requestedName.slice(0, -3) : requestedName;
+  let fileName = `${slugify(baseName)}.md`;
+  let suffix = 2;
+  while (await prisma.vaultFile.findUnique({ where: { workspaceId_fileName: { workspaceId, fileName } }, select: { id: true } })) {
+    fileName = `${slugify(baseName)}-${suffix}.md`;
+    suffix += 1;
+  }
+  return fileName;
 }

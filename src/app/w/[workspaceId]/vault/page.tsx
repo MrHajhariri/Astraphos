@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
-import { createVaultFileAction } from "@/lib/actions";
+import { createVaultFileAction, createVaultFolderAction, importMarkdownFilesAction } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -16,7 +16,8 @@ export default async function VaultPage({ params }: { params: Promise<{ workspac
       workspace: {
         include: {
           pages: { where: { archivedAt: null, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
-          vaultFiles: { orderBy: { updatedAt: "desc" } },
+          vaultFiles: { include: { folder: true, tags: { include: { tag: true } } }, orderBy: { updatedAt: "desc" } },
+          vaultFolders: { orderBy: { name: "asc" } },
         },
       },
     },
@@ -34,18 +35,34 @@ export default async function VaultPage({ params }: { params: Promise<{ workspac
             <h1 className="mt-1 text-4xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">Vault</h1>
             <p className="mt-3 max-w-2xl text-sm text-zinc-500">Create database-backed Markdown files that can link into the knowledge graph with [[Wiki Links]].</p>
           </div>
-          <form action={createVaultFileAction} className="flex gap-2">
-            <input type="hidden" name="workspaceId" value={workspaceId} />
-            <input name="title" placeholder="New file title" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
-            <button className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-950">Create .md</button>
-          </form>
+          <div className="grid gap-2">
+            <form action={createVaultFileAction} className="flex gap-2">
+              <input type="hidden" name="workspaceId" value={workspaceId} />
+              <input name="title" placeholder="New file title" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
+              <button className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-950">Create .md</button>
+            </form>
+            <form action={importMarkdownFilesAction} className="flex gap-2">
+              <input type="hidden" name="workspaceId" value={workspaceId} />
+              <input name="files" type="file" multiple accept=".md,text/markdown" className="max-w-56 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800" />
+              <button className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Import</button>
+            </form>
+          </div>
         </div>
+
+        <form action={createVaultFolderAction} className="mt-6 flex max-w-md gap-2 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
+          <input type="hidden" name="workspaceId" value={workspaceId} />
+          <input name="name" placeholder="New folder" className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
+          <button className="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Add folder</button>
+        </form>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
           {membership.workspace.vaultFiles.map((file) => (
             <Link key={file.id} href={`/w/${workspaceId}/vault/${file.id}`} className="group rounded-2xl border border-zinc-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-cyan-700">
               <p className="font-medium text-zinc-950 dark:text-zinc-50">{file.title}</p>
-              <p className="mt-1 text-xs text-cyan-600 dark:text-cyan-300">{file.fileName}</p>
+              <p className="mt-1 text-xs text-cyan-600 dark:text-cyan-300">{file.folder?.name ?? "Root"} / {file.fileName}</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {file.tags.map(({ tag }) => <span key={tag.id} className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-950 dark:text-violet-200">{tag.name}</span>)}
+              </div>
               <p className="mt-3 line-clamp-3 text-sm text-zinc-500">{file.plainText || "Empty Markdown file."}</p>
             </Link>
           ))}

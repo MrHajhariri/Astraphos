@@ -14,8 +14,8 @@ export default async function GraphPage({ params }: { params: Promise<{ workspac
     include: {
       workspace: {
         include: {
-          pages: { where: { archivedAt: null, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
-          vaultFiles: { orderBy: { updatedAt: "desc" } },
+          pages: { where: { archivedAt: null, deletedAt: null }, include: { nodeType: true, tags: { include: { tag: true } } }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
+          vaultFiles: { include: { nodeType: true, folder: true, tags: { include: { tag: true } } }, orderBy: { updatedAt: "desc" } },
           knowledgeEdges: true,
         },
       },
@@ -42,8 +42,8 @@ export default async function GraphPage({ params }: { params: Promise<{ workspac
       return { source, target, type: edge.type };
     });
   const nodes = [
-    ...membership.workspace.pages.map((page) => ({ id: nodeKey("PAGE", page.id), type: "PAGE" as const, title: page.title || "Untitled", href: `/w/${workspaceId}/p/${page.id}`, degree: degree.get(nodeKey("PAGE", page.id)) ?? 0 })),
-    ...membership.workspace.vaultFiles.map((file) => ({ id: nodeKey("VAULT_FILE", file.id), type: "VAULT_FILE" as const, title: file.title || file.fileName, href: `/w/${workspaceId}/vault/${file.id}`, degree: degree.get(nodeKey("VAULT_FILE", file.id)) ?? 0 })),
+    ...membership.workspace.pages.map((page) => ({ id: nodeKey("PAGE", page.id), type: "PAGE" as const, title: page.title || "Untitled", href: `/w/${workspaceId}/p/${page.id}`, degree: degree.get(nodeKey("PAGE", page.id)) ?? 0, nodeType: page.nodeType?.name ?? null, folder: null, tags: page.tags.map(({ tag }) => tag.name) })),
+    ...membership.workspace.vaultFiles.map((file) => ({ id: nodeKey("VAULT_FILE", file.id), type: "VAULT_FILE" as const, title: file.title || file.fileName, href: `/w/${workspaceId}/vault/${file.id}`, degree: degree.get(nodeKey("VAULT_FILE", file.id)) ?? 0, nodeType: file.nodeType?.name ?? null, folder: file.folder?.name ?? null, tags: file.tags.map(({ tag }) => tag.name) })),
   ];
 
   return (

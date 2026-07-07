@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { LoreEditor } from "@/components/editor";
 import { Backlinks, type Backlink } from "@/components/backlinks";
+import { PageMetadataPanel } from "@/components/metadata-panel";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { toggleFavoriteAction, createPageAction, archivePageAction } from "@/lib/actions";
+import { toggleFavoriteAction, createPageAction, archivePageAction, deletePageAction } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
         include: {
           pages: { where: { archivedAt: null, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
           templates: { orderBy: { name: "asc" } },
+          nodeTypes: { orderBy: { name: "asc" } },
         },
       },
     },
@@ -26,6 +28,11 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
   if (!membership) notFound();
   const page = membership.workspace.pages.find((item) => item.id === pageId);
   if (!page) notFound();
+  const pageMetadata = await prisma.page.findFirst({
+    where: { id: page.id, workspaceId },
+    select: { id: true, nodeTypeId: true, tags: { include: { tag: true }, orderBy: { tag: { name: "asc" } } } },
+  });
+  if (!pageMetadata) notFound();
   const incomingEdges = await prisma.knowledgeEdge.findMany({ where: { workspaceId, targetType: "PAGE", targetId: page.id } });
   const sourcePageIds = incomingEdges.filter((edge) => edge.sourceType === "PAGE").map((edge) => edge.sourceId);
   const sourceVaultIds = incomingEdges.filter((edge) => edge.sourceType === "VAULT_FILE").map((edge) => edge.sourceId);
@@ -68,9 +75,15 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
               <input type="hidden" name="pageId" value={page.id} />
               <button className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Archive</button>
             </form>
+            <form action={deletePageAction}>
+              <input type="hidden" name="workspaceId" value={workspaceId} />
+              <input type="hidden" name="pageId" value={page.id} />
+              <button className="rounded-lg border border-red-300 bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 dark:border-red-900">Delete</button>
+            </form>
           </div>
         </div>
         <LoreEditor workspaceId={workspaceId} page={{ id: page.id, title: page.title, content: page.content as never }} pages={membership.workspace.pages.map(({ id, title }) => ({ id, title }))} />
+        <PageMetadataPanel workspaceId={workspaceId} page={pageMetadata} nodeTypes={membership.workspace.nodeTypes} />
         <Backlinks backlinks={backlinks} />
         <div className="mx-auto max-w-4xl px-5 pb-10 md:px-10">
           <div className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
