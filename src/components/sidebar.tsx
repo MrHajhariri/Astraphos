@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { FileText, LogOut, Plus, Search, Star } from "lucide-react";
+import { Archive, FileText, LogOut, Plus, Search, Settings } from "lucide-react";
 import { createPageAction, logoutAction } from "@/lib/actions";
 import { getInitials } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PageLink, SortablePageTree } from "@/components/sortable-page-tree";
 
 type PageNode = {
   id: string;
@@ -23,7 +24,6 @@ export function Sidebar({
   activePageId?: string;
 }) {
   const favorites = pages.filter((page) => page.isFavorite);
-  const roots = pages.filter((page) => !page.parentId);
 
   return (
     <aside className="flex h-dvh w-full flex-col border-r border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-950 md:w-72">
@@ -40,6 +40,18 @@ export function Sidebar({
 
       <Link href={`/w/${workspace.id}/search`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">
         <Search size={16} /> Search
+      </Link>
+
+      <Link href={`/w/${workspace.id}/archive`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">
+        <Archive size={16} /> Archive
+      </Link>
+
+      <Link href={`/w/${workspace.id}/templates`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">
+        <FileText size={16} /> Templates
+      </Link>
+
+      <Link href={`/w/${workspace.id}/settings`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">
+        <Settings size={16} /> Settings
       </Link>
 
       <form action={createPageAction} className="mb-4">
@@ -60,7 +72,7 @@ export function Sidebar({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <p className="mb-1 px-2 text-xs font-medium uppercase tracking-wide text-zinc-400">Pages</p>
-        <PageTree pages={pages} nodes={roots} workspaceId={workspace.id} activePageId={activePageId} />
+        <SortablePageTree pages={pages} workspaceId={workspace.id} activePageId={activePageId} />
       </div>
 
       <form action={logoutAction}>
@@ -69,26 +81,5 @@ export function Sidebar({
         </button>
       </form>
     </aside>
-  );
-}
-
-function PageTree({ pages, nodes, workspaceId, activePageId }: { pages: PageNode[]; nodes: PageNode[]; workspaceId: string; activePageId?: string }) {
-  return nodes.map((page) => {
-    const children = pages.filter((child) => child.parentId === page.id);
-    return (
-      <div key={page.id}>
-        <PageLink page={page} workspaceId={workspaceId} active={page.id === activePageId} />
-        {children.length ? <div className="ml-4 border-l border-zinc-200 pl-1 dark:border-zinc-800"><PageTree pages={pages} nodes={children} workspaceId={workspaceId} activePageId={activePageId} /></div> : null}
-      </div>
-    );
-  });
-}
-
-function PageLink({ page, workspaceId, active, favorite }: { page: PageNode; workspaceId: string; active?: boolean; favorite?: boolean }) {
-  return (
-    <Link href={`/w/${workspaceId}/p/${page.id}`} className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${active ? "bg-zinc-200 text-zinc-950 dark:bg-zinc-800 dark:text-zinc-50" : "text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900"}`}>
-      {favorite ? <Star size={15} className="fill-current" /> : <FileText size={15} />}
-      <span className="truncate">{page.title || "Untitled"}</span>
-    </Link>
   );
 }

@@ -12,7 +12,7 @@ export default async function SearchPage({ params, searchParams }: { params: Pro
   const user = await requireUser();
   const membership = await prisma.workspaceMember.findUnique({
     where: { userId_workspaceId: { userId: user.id, workspaceId } },
-    include: { workspace: { include: { pages: { orderBy: [{ position: "asc" }, { createdAt: "asc" }] } } } },
+    include: { workspace: { include: { pages: { where: { archivedAt: null, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] } } } },
   });
   if (!membership) notFound();
 

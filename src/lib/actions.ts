@@ -1,7 +1,5 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { JSONContent } from "@tiptap/react";
@@ -9,6 +7,7 @@ import { z } from "zod";
 import { createSession, destroySession, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { emptyDoc, extractPlainText, starterTemplate } from "@/lib/editor";
+import { storeUpload, validateUpload } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
 
 const authSchema = z.object({
@@ -118,15 +117,26 @@ export async function createPageAction(formData: FormData) {
   const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
   if (!membership) throw new Error("Workspace not found");
 
+  if (parentId) {
+    const parent = await prisma.page.findFirst({ where: { id: parentId, workspaceId, archivedAt: null, deletedAt: null } });
+    if (!parent) throw new Error("Parent page not found");
+  }
+
   const template = templateId
     ? await prisma.template.findFirst({ where: { id: templateId, workspaceId } })
     : null;
   const content = (template?.content as JSONContent | null) ?? emptyDoc;
+  const lastSibling = await prisma.page.findFirst({
+    where: { workspaceId, parentId, archivedAt: null, deletedAt: null },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  });
   const page = await prisma.page.create({
     data: {
       title: template ? template.name : "Untitled",
       workspaceId,
       parentId,
+      position: (lastSibling?.position ?? -1) + 1,
       content,
       plainText: extractPlainText(content),
     },
@@ -180,29 +190,216 @@ export async function toggleFavoriteAction(formData: FormData) {
   revalidatePath(`/w/${workspaceId}/p/${pageId}`);
 }
 
+export async function archivePageAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const pageId = String(formData.get("pageId") ?? "");
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  const page = await prisma.page.findFirst({ where: { id: pageId, workspaceId, archivedAt: null, deletedAt: null } });
+  if (!page) throw new Error("Page not found");
+
+  const pageIds = await getPageDescendantIds(workspaceId, pageId);
+  await prisma.page.updateMany({
+    where: { id: { in: pageIds }, workspaceId },
+    data: { archivedAt: new Date(), isFavorite: false },
+  });
+
+  const nextPage = await prisma.page.findFirst({
+    where: { workspaceId, archivedAt: null, deletedAt: null, id: { notIn: pageIds } },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+
+  revalidatePath(`/w/${workspaceId}`);
+  redirect(nextPage ? `/w/${workspaceId}/p/${nextPage.id}` : `/w/${workspaceId}/archive`);
+}
+
+export async function restorePageAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const pageId = String(formData.get("pageId") ?? "");
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  const page = await prisma.page.findFirst({ where: { id: pageId, workspaceId, archivedAt: { not: null }, deletedAt: null } });
+  if (!page) throw new Error("Archived page not found");
+
+  const pageIds = await getPageDescendantIds(workspaceId, pageId);
+  await prisma.page.updateMany({
+    where: { id: { in: pageIds }, workspaceId, deletedAt: null },
+    data: { archivedAt: null },
+  });
+
+  revalidatePath(`/w/${workspaceId}`);
+  redirect(`/w/${workspaceId}/p/${pageId}`);
+}
+
+export async function deletePageAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const pageId = String(formData.get("pageId") ?? "");
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  const page = await prisma.page.findFirst({ where: { id: pageId, workspaceId, archivedAt: { not: null } } });
+  if (!page) throw new Error("Archived page not found");
+
+  await prisma.page.delete({ where: { id: pageId } });
+  revalidatePath(`/w/${workspaceId}`);
+}
+
+export async function reorderPagesAction(input: { workspaceId: string; parentId: string | null; orderedIds: string[] }) {
+  const user = await requireUser();
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId: input.workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  const uniqueIds = Array.from(new Set(input.orderedIds));
+  if (uniqueIds.length !== input.orderedIds.length) throw new Error("Page order contains duplicate pages");
+
+  const pages = await prisma.page.findMany({
+    where: {
+      id: { in: uniqueIds },
+      workspaceId: input.workspaceId,
+      parentId: input.parentId,
+      archivedAt: null,
+      deletedAt: null,
+    },
+    select: { id: true },
+  });
+
+  if (pages.length !== uniqueIds.length) throw new Error("Page order does not match the current parent");
+
+  await prisma.$transaction(
+    uniqueIds.map((id, position) =>
+      prisma.page.update({
+        where: { id },
+        data: { position },
+      }),
+    ),
+  );
+
+  revalidatePath(`/w/${input.workspaceId}`);
+}
+
+export async function createTemplateAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const sourcePageId = String(formData.get("sourcePageId") ?? "");
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+  if (!name) throw new Error("Template name is required");
+
+  const sourcePage = sourcePageId
+    ? await prisma.page.findFirst({ where: { id: sourcePageId, workspaceId, archivedAt: null, deletedAt: null } })
+    : null;
+
+  await prisma.template.create({
+    data: {
+      name,
+      description: description || null,
+      content: (sourcePage?.content as JSONContent | null) ?? emptyDoc,
+      workspaceId,
+    },
+  });
+
+  revalidatePath(`/w/${workspaceId}/templates`);
+}
+
+export async function updateTemplateAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const templateId = String(formData.get("templateId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+  if (!name) throw new Error("Template name is required");
+
+  await prisma.template.update({
+    where: { id: templateId, workspaceId },
+    data: { name, description: description || null },
+  });
+
+  revalidatePath(`/w/${workspaceId}/templates`);
+}
+
+export async function deleteTemplateAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const templateId = String(formData.get("templateId") ?? "");
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  await prisma.template.delete({ where: { id: templateId, workspaceId } });
+  revalidatePath(`/w/${workspaceId}/templates`);
+}
+
+export async function updateWorkspaceAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const slugInput = String(formData.get("slug") ?? "").trim();
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership || membership.role !== "OWNER") throw new Error("Workspace not found");
+  if (!name) throw new Error("Workspace name is required");
+
+  const slug = slugify(slugInput || name);
+  const existingSlug = await prisma.workspace.findFirst({ where: { slug, id: { not: workspaceId } }, select: { id: true } });
+  if (existingSlug) throw new Error("Workspace slug is already in use");
+
+  await prisma.workspace.update({ where: { id: workspaceId }, data: { name, slug } });
+  revalidatePath(`/w/${workspaceId}`);
+}
+
 export async function uploadAssetAction(formData: FormData) {
   const user = await requireUser();
   const file = formData.get("file");
   const pageId = String(formData.get("pageId") ?? "");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
-  if (file.size > 5 * 1024 * 1024) return { error: "Files must be 5 MB or smaller for the MVP." };
+  const validationError = validateUpload(file);
+  if (validationError) return { error: validationError };
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const storedName = `${crypto.randomUUID()}-${safeName}`;
-  const uploadDir = path.join(process.cwd(), "public", "uploads");
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(path.join(uploadDir, storedName), Buffer.from(await file.arrayBuffer()));
+  if (pageId) {
+    const page = await prisma.page.findFirst({ where: { id: pageId, archivedAt: null, deletedAt: null, workspace: { members: { some: { userId: user.id } } } } });
+    if (!page) return { error: "Page not found." };
+  }
+
+  const stored = await storeUpload(file);
 
   const asset = await prisma.asset.create({
     data: {
       fileName: file.name,
       mimeType: file.type || "application/octet-stream",
       size: file.size,
-      url: `/uploads/${storedName}`,
+      url: stored.url,
+      storageProvider: stored.storageProvider,
+      storageKey: stored.storageKey,
       userId: user.id,
       pageId: pageId || null,
     },
   });
 
   return { url: asset.url, fileName: asset.fileName, mimeType: asset.mimeType };
+}
+
+async function getPageDescendantIds(workspaceId: string, pageId: string) {
+  const ids = [pageId];
+  const queue = [pageId];
+
+  while (queue.length) {
+    const parentId = queue.shift();
+    const children = await prisma.page.findMany({
+      where: { workspaceId, parentId },
+      select: { id: true },
+    });
+    const childIds = children.map((child) => child.id);
+    ids.push(...childIds);
+    queue.push(...childIds);
+  }
+
+  return ids;
 }

@@ -49,6 +49,8 @@ model Page {
   plainText     String         @default("")
   position      Int            @default(0)
   isFavorite    Boolean        @default(false)
+  archivedAt    DateTime?
+  deletedAt     DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   workspaceId   String
@@ -61,6 +63,8 @@ model Page {
   assets        Asset[]
 
   @@index([workspaceId, parentId, position])
+  @@index([workspaceId, archivedAt])
+  @@index([workspaceId, deletedAt])
   @@index([workspaceId, plainText])
 }
 
@@ -93,6 +97,8 @@ model Asset {
   mimeType    String
   size        Int
   url         String
+  storageProvider String @default("local")
+  storageKey      String?
   createdAt   DateTime  @default(now())
   userId      String
   pageId      String?

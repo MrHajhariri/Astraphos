@@ -3,7 +3,7 @@ import { Sidebar } from "@/components/sidebar";
 import { LoreEditor } from "@/components/editor";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { toggleFavoriteAction, createPageAction } from "@/lib/actions";
+import { toggleFavoriteAction, createPageAction, archivePageAction } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
     include: {
       workspace: {
         include: {
-          pages: { orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
+          pages: { where: { archivedAt: null, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
           templates: { orderBy: { name: "asc" } },
         },
       },
@@ -44,6 +44,11 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
               <input type="hidden" name="workspaceId" value={workspaceId} />
               <input type="hidden" name="parentId" value={page.id} />
               <button className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">New child</button>
+            </form>
+            <form action={archivePageAction}>
+              <input type="hidden" name="workspaceId" value={workspaceId} />
+              <input type="hidden" name="pageId" value={page.id} />
+              <button className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Archive</button>
             </form>
           </div>
         </div>

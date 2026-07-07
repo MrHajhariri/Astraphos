@@ -8,7 +8,7 @@ export default async function AppRedirectPage() {
   const user = await requireUser();
   const membership = await prisma.workspaceMember.findFirst({
     where: { userId: user.id },
-    include: { workspace: { include: { pages: { orderBy: [{ position: "asc" }, { createdAt: "asc" }], take: 1 } } } },
+    include: { workspace: { include: { pages: { where: { archivedAt: null, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], take: 1 } } } },
   });
 
   if (!membership) redirect("/signup");
