@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { emptyDoc, extractPlainText, starterTemplate } from "@/lib/editor";
 import { storeUpload, validateUpload } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
+import { extractWikiLinks, markdownToPlainText, normalizeWikiTitle } from "@/lib/wiki-links";
 
 const authSchema = z.object({
   email: z.string().email(),
@@ -157,13 +158,14 @@ export async function updatePageAction(input: {
   const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId: input.workspaceId } } });
   if (!membership) throw new Error("Workspace not found");
 
+  const plainText = extractPlainText(input.content);
   await prisma.$transaction([
     prisma.page.update({
       where: { id: input.pageId, workspaceId: input.workspaceId },
       data: {
         title: input.title.trim() || "Untitled",
         content: input.content,
-        plainText: extractPlainText(input.content),
+        plainText,
       },
     }),
     prisma.pageRelation.deleteMany({ where: { sourceId: input.pageId, type: "MENTION" } }),
@@ -175,6 +177,8 @@ export async function updatePageAction(input: {
         }),
       ),
   ]);
+
+  await syncKnowledgeEdges({ workspaceId: input.workspaceId, sourceType: "PAGE", sourceId: input.pageId, text: plainText });
 
   revalidatePath(`/w/${input.workspaceId}/p/${input.pageId}`);
 }
@@ -355,6 +359,70 @@ export async function updateWorkspaceAction(formData: FormData) {
   revalidatePath(`/w/${workspaceId}`);
 }
 
+export async function createVaultFileAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const title = String(formData.get("title") ?? "").trim() || "Untitled";
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  const baseFileName = `${slugify(title)}.md`;
+  let fileName = baseFileName;
+  let suffix = 2;
+  while (await prisma.vaultFile.findUnique({ where: { workspaceId_fileName: { workspaceId, fileName } }, select: { id: true } })) {
+    fileName = `${slugify(title)}-${suffix}.md`;
+    suffix += 1;
+  }
+
+  const file = await prisma.vaultFile.create({
+    data: {
+      title,
+      fileName,
+      content: `# ${title}\n`,
+      plainText: title,
+      workspaceId,
+    },
+  });
+
+  revalidatePath(`/w/${workspaceId}/vault`);
+  redirect(`/w/${workspaceId}/vault/${file.id}`);
+}
+
+export async function updateVaultFileAction(input: { workspaceId: string; fileId: string; title: string; content: string }) {
+  const user = await requireUser();
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId: input.workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  await prisma.vaultFile.update({
+    where: { id: input.fileId, workspaceId: input.workspaceId },
+    data: {
+      title: input.title.trim() || "Untitled",
+      content: input.content,
+      plainText: markdownToPlainText(input.content),
+    },
+  });
+
+  await syncKnowledgeEdges({ workspaceId: input.workspaceId, sourceType: "VAULT_FILE", sourceId: input.fileId, text: input.content });
+
+  revalidatePath(`/w/${input.workspaceId}/vault/${input.fileId}`);
+}
+
+export async function deleteVaultFileAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const fileId = String(formData.get("fileId") ?? "");
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+
+  await prisma.$transaction([
+    prisma.knowledgeEdge.deleteMany({ where: { workspaceId, OR: [{ sourceType: "VAULT_FILE", sourceId: fileId }, { targetType: "VAULT_FILE", targetId: fileId }] } }),
+    prisma.vaultFile.delete({ where: { id: fileId, workspaceId } }),
+  ]);
+
+  revalidatePath(`/w/${workspaceId}/vault`);
+  redirect(`/w/${workspaceId}/vault`);
+}
+
 export async function uploadAssetAction(formData: FormData) {
   const user = await requireUser();
   const file = formData.get("file");
@@ -402,4 +470,39 @@ async function getPageDescendantIds(workspaceId: string, pageId: string) {
   }
 
   return ids;
+}
+
+async function syncKnowledgeEdges({ workspaceId, sourceType, sourceId, text }: { workspaceId: string; sourceType: "PAGE" | "VAULT_FILE"; sourceId: string; text: string }) {
+  const linkTitles = extractWikiLinks(text);
+  const [pages, vaultFiles] = await Promise.all([
+    prisma.page.findMany({ where: { workspaceId, archivedAt: null, deletedAt: null }, select: { id: true, title: true } }),
+    prisma.vaultFile.findMany({ where: { workspaceId }, select: { id: true, title: true, fileName: true } }),
+  ]);
+  const pageTargets = new Map(pages.map((page) => [normalizeWikiTitle(page.title), page.id]));
+  const vaultTargets = new Map(vaultFiles.flatMap((file) => [[normalizeWikiTitle(file.title), file.id], [normalizeWikiTitle(file.fileName), file.id]]));
+
+  const edges = linkTitles.flatMap((title) => {
+    const pageId = pageTargets.get(title);
+    const vaultFileId = vaultTargets.get(title);
+    const targets = [];
+    if (pageId && !(sourceType === "PAGE" && sourceId === pageId)) targets.push({ targetType: "PAGE" as const, targetId: pageId });
+    if (vaultFileId && !(sourceType === "VAULT_FILE" && sourceId === vaultFileId)) targets.push({ targetType: "VAULT_FILE" as const, targetId: vaultFileId });
+    return targets;
+  });
+
+  await prisma.$transaction([
+    prisma.knowledgeEdge.deleteMany({ where: { workspaceId, sourceType, sourceId, type: "WIKI_LINK" } }),
+    ...edges.map((edge) =>
+      prisma.knowledgeEdge.create({
+        data: {
+          workspaceId,
+          sourceType,
+          sourceId,
+          targetType: edge.targetType,
+          targetId: edge.targetId,
+          type: "WIKI_LINK",
+        },
+      }),
+    ),
+  ]);
 }

@@ -1,10 +1,10 @@
 # Astraphos
 
-**Version:** `v0.2.0 - Page Management Preview`
+**Version:** `v0.3.0 - Knowledge Graph And Vault`
 
 Astraphos is an open-source, AI-ready knowledge workspace for people who want to own their notes, documents, and project knowledge.
 
-The MVP focuses on the core Notion-like foundation: authenticated workspaces, nested pages, rich-text editing, search, templates, relationships between pages, configurable uploads, PostgreSQL storage, and simple self-hosting.
+The MVP focuses on the core Notion-like foundation: authenticated workspaces, nested pages, rich-text editing, wiki links, backlinks, an interactive knowledge graph, a Markdown Vault, configurable uploads, PostgreSQL storage, and simple self-hosting.
 
 ## Preview
 
@@ -12,23 +12,24 @@ The MVP focuses on the core Notion-like foundation: authenticated workspaces, ne
 
 ## Status
 
-Astraphos `v0.2.0 - Page Management Preview` is currently an MVP. It is usable for local/self-hosted personal workspaces, but it is not yet a polished production SaaS.
+Astraphos `v0.3.0 - Knowledge Graph And Vault` is currently an MVP. It is usable for local/self-hosted personal workspaces, but it is not yet a polished production SaaS.
 
 Current priorities:
 
 - Stabilize the document model and editing experience
-- Polish page management flows and drag-and-drop edge cases
-- Harden upload storage providers for production deployments
+- Polish graph navigation, animation, and large-workspace performance
+- Expand Vault organization with tags, folders, import/export, and custom node types
 - Prepare the app for future collaboration and AI features
 
-## What's New In v0.2.0
+## What's New In v0.3.0
 
-- Page archive, restore, and permanent deletion
-- Sidebar drag-and-drop reordering for pages at the same tree level
-- Real slash-command menu for common editor blocks
-- Workspace template management with create, edit, delete, and create-page actions
-- Upload validation, visible upload errors, and local/S3-compatible object storage support
-- Workspace settings for owner-managed name and slug updates
+- Interactive knowledge graph for notes and Vault files
+- Wiki-style links using `[[Page Name]]` or `[[Vault File]]`
+- Automatic backlinks across rich-text notes and Markdown Vault files
+- Markdown Vault with database-backed `.md` files
+- Graph filters for `All`, `Notes`, `Vault`, connected nodes, and title search
+- Most-connected nodes panel and click-to-open graph navigation
+- Sleek graph visuals with different colors for notes and Vault files
 
 ## Features
 
@@ -37,6 +38,11 @@ Current priorities:
 - Nested pages with a persistent sidebar tree
 - Sidebar drag-and-drop page reordering
 - Page archive, restore, and permanent deletion
+- Markdown Vault for database-backed `.md` files
+- Wiki-style `[[Page Name]]` links across notes and Vault files
+- Automatic backlinks
+- Interactive knowledge graph with node filters and click-to-open navigation
+- Most-connected pages/files view
 - Rich-text editing powered by TipTap
 - Slash-command menu for common editor blocks
 - Markdown shortcuts for common editor actions

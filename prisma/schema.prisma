@@ -27,6 +27,8 @@ model Workspace {
   members   WorkspaceMember[]
   pages     Page[]
   templates Template[]
+  vaultFiles VaultFile[]
+  knowledgeEdges KnowledgeEdge[]
 }
 
 model WorkspaceMember {
@@ -80,6 +82,39 @@ model PageRelation {
   @@unique([sourceId, targetId, type])
 }
 
+model VaultFile {
+  id          String    @id @default(cuid())
+  title       String
+  fileName    String
+  content     String    @default("")
+  plainText   String    @default("")
+  icon        String    @default("FileText")
+  color       String    @default("cyan")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, fileName])
+  @@index([workspaceId, title])
+}
+
+model KnowledgeEdge {
+  id          String            @id @default(cuid())
+  type        KnowledgeEdgeType @default(WIKI_LINK)
+  sourceType  KnowledgeNodeType
+  sourceId    String
+  targetType  KnowledgeNodeType
+  targetId    String
+  createdAt   DateTime          @default(now())
+  workspaceId String
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, sourceType, sourceId, targetType, targetId, type])
+  @@index([workspaceId, sourceType, sourceId])
+  @@index([workspaceId, targetType, targetId])
+}
+
 model Template {
   id          String    @id @default(cuid())
   name        String
@@ -114,4 +149,14 @@ enum Role {
 enum RelationType {
   LINK
   MENTION
+}
+
+enum KnowledgeNodeType {
+  PAGE
+  VAULT_FILE
+}
+
+enum KnowledgeEdgeType {
+  WIKI_LINK
+  MANUAL
 }
