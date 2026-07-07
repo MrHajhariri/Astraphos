@@ -34,6 +34,7 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
   const [tagFilter, setTagFilter] = useState("");
   const [folderFilter, setFolderFilter] = useState("");
   const [nodeTypeFilter, setNodeTypeFilter] = useState("");
+  const [degreeThreshold, setDegreeThreshold] = useState(0);
   const tags = useMemo(() => Array.from(new Set(nodes.flatMap((node) => node.tags))).sort(), [nodes]);
   const folders = useMemo(() => Array.from(new Set(nodes.map((node) => node.folder).filter(Boolean) as string[])).sort(), [nodes]);
   const nodeTypes = useMemo(() => Array.from(new Set(nodes.map((node) => node.nodeType).filter(Boolean) as string[])).sort(), [nodes]);
@@ -43,6 +44,7 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
       if (mode === "notes" && node.type !== "PAGE") return false;
       if (mode === "vault" && node.type !== "VAULT_FILE") return false;
       if (connectedOnly && node.degree === 0) return false;
+      if (node.degree < degreeThreshold) return false;
       if (query && !node.title.toLowerCase().includes(query.toLowerCase())) return false;
       if (tagFilter && !node.tags.includes(tagFilter)) return false;
       if (folderFilter && node.folder !== folderFilter) return false;
@@ -54,7 +56,7 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
       nodes: visibleNodes,
       links: links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target)),
     };
-  }, [connectedOnly, folderFilter, links, mode, nodeTypeFilter, nodes, query, tagFilter]);
+  }, [connectedOnly, degreeThreshold, folderFilter, links, mode, nodeTypeFilter, nodes, query, tagFilter]);
 
   const mostConnected = useMemo(() => [...nodes].sort((a, b) => b.degree - a.degree).slice(0, 8), [nodes]);
 
@@ -83,6 +85,12 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
               <option value="">All folders</option>
               {folders.map((folder) => <option key={folder} value={folder}>{folder}</option>)}
             </select>
+            <select value={degreeThreshold} onChange={(event) => setDegreeThreshold(Number(event.target.value))} className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white outline-none">
+              <option value={0}>Any degree</option>
+              <option value={1}>1+ links</option>
+              <option value={3}>3+ links</option>
+              <option value={5}>5+ links</option>
+            </select>
           </div>
           <div className="flex gap-2">
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter graph..." className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white outline-none placeholder:text-zinc-400 focus:border-cyan-300" />
@@ -90,7 +98,7 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
           </div>
         </div>
         <div className="h-[68vh]">
-          <ForceGraph2D
+          {graphData.nodes.length ? <ForceGraph2D
             ref={graphRef as never}
             graphData={graphData}
             backgroundColor="rgba(0,0,0,0)"
@@ -121,7 +129,7 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
               }
             }}
             onNodeClick={(node) => router.push((node as GraphNode).href)}
-          />
+          /> : <div className="flex h-full items-center justify-center px-6 text-center text-sm text-zinc-300">No graph nodes match the current filters.</div>}
         </div>
       </div>
       <aside className="rounded-3xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">

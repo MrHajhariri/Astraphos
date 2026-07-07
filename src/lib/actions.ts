@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { JSONContent } from "@tiptap/react";
 import { z } from "zod";
-import { createSession, destroySession, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
+import { createSession, destroySession, hashPassword, requireUser, requireWorkspaceMember, requireWorkspaceOwner, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { emptyDoc, extractPlainText, starterTemplate } from "@/lib/editor";
 import { storeUpload, validateUpload } from "@/lib/storage";
@@ -516,6 +516,64 @@ export async function createNodeTypeAction(formData: FormData) {
 
   await prisma.nodeType.create({ data: { name, slug: slugify(name), color, icon, workspaceId } });
   revalidatePath(`/w/${workspaceId}/settings`);
+}
+
+export async function updateTagAction(formData: FormData) {
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const tagId = String(formData.get("tagId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const color = String(formData.get("color") ?? "violet").trim() || "violet";
+  await requireWorkspaceMember(workspaceId);
+  if (!name) throw new Error("Tag name is required");
+  await prisma.tag.update({ where: { id: tagId, workspaceId }, data: { name, slug: slugify(name), color } });
+  revalidatePath(`/w/${workspaceId}/tags`);
+}
+
+export async function deleteTagAction(formData: FormData) {
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const tagId = String(formData.get("tagId") ?? "");
+  await requireWorkspaceMember(workspaceId);
+  await prisma.tag.delete({ where: { id: tagId, workspaceId } });
+  revalidatePath(`/w/${workspaceId}/tags`);
+}
+
+export async function updateVaultFolderAction(formData: FormData) {
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const folderId = String(formData.get("folderId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const color = String(formData.get("color") ?? "cyan").trim() || "cyan";
+  await requireWorkspaceMember(workspaceId);
+  if (!name) throw new Error("Folder name is required");
+  await prisma.vaultFolder.update({ where: { id: folderId, workspaceId }, data: { name, slug: slugify(name), color } });
+  revalidatePath(`/w/${workspaceId}/folders`);
+}
+
+export async function deleteVaultFolderAction(formData: FormData) {
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const folderId = String(formData.get("folderId") ?? "");
+  await requireWorkspaceMember(workspaceId);
+  await prisma.vaultFolder.delete({ where: { id: folderId, workspaceId } });
+  revalidatePath(`/w/${workspaceId}/folders`);
+}
+
+export async function updateNodeTypeAction(formData: FormData) {
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const nodeTypeId = String(formData.get("nodeTypeId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const icon = String(formData.get("icon") ?? "FileText").trim() || "FileText";
+  const color = String(formData.get("color") ?? "violet").trim() || "violet";
+  await requireWorkspaceOwner(workspaceId);
+  if (!name) throw new Error("Node type name is required");
+  await prisma.nodeType.update({ where: { id: nodeTypeId, workspaceId }, data: { name, slug: slugify(name), icon, color } });
+  revalidatePath(`/w/${workspaceId}/node-types`);
+}
+
+export async function deleteNodeTypeAction(formData: FormData) {
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const nodeTypeId = String(formData.get("nodeTypeId") ?? "");
+  await requireWorkspaceOwner(workspaceId);
+  await prisma.nodeType.delete({ where: { id: nodeTypeId, workspaceId } });
+  revalidatePath(`/w/${workspaceId}/node-types`);
 }
 
 export async function uploadAssetAction(formData: FormData) {

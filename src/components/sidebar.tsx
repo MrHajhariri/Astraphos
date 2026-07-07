@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, FileText, FolderOpen, GitFork, LogOut, Plus, Search, Settings } from "lucide-react";
+import { Archive, FileText, FolderOpen, GitFork, LogOut, Plus, Search, Settings, Tags } from "lucide-react";
 import { createPageAction, logoutAction } from "@/lib/actions";
 import { getInitials } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -56,6 +56,18 @@ export function Sidebar({
 
       <Link href={`/w/${workspace.id}/vault`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">
         <FolderOpen size={16} /> Vault
+      </Link>
+
+      <Link href={`/w/${workspace.id}/tags`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">
+        <Tags size={16} /> Tags
+      </Link>
+
+      <Link href={`/w/${workspace.id}/folders`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">
+        <FolderOpen size={16} /> Folders
+      </Link>
+
+      <Link href={`/w/${workspace.id}/node-types`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">
+        <GitFork size={16} /> Node types
       </Link>
 
       <Link href={`/w/${workspace.id}/settings`} className="mb-2 flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-900">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ConfirmButton } from "@/components/confirm-button";
 import { Sidebar } from "@/components/sidebar";
 import { deletePageAction, restorePageAction } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
@@ -60,7 +61,7 @@ export default async function ArchivePage({ params }: { params: Promise<{ worksp
                     <input type="hidden" name="workspaceId" value={workspaceId} />
                     <input type="hidden" name="pageId" value={page.id} />
                     <input type="hidden" name="returnTo" value={`/w/${workspaceId}/archive`} />
-                    <button className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Delete forever</button>
+                    <ConfirmButton confirmLabel="Confirm forever" className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Delete forever</ConfirmButton>
                   </form>
                 </div>
               </div>

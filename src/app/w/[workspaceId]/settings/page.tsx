@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
-import { createNodeTypeAction, updateWorkspaceAction } from "@/lib/actions";
+import { updateWorkspaceAction } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -59,15 +59,6 @@ export default async function SettingsPage({ params }: { params: Promise<{ works
               <span key={type.id} className="rounded-full bg-zinc-100 px-3 py-1 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">{type.name} · {type.color}</span>
             ))}
           </div>
-          {canEdit ? (
-            <form action={createNodeTypeAction} className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-              <input type="hidden" name="workspaceId" value={workspaceId} />
-              <input name="name" placeholder="Node type" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
-              <input name="icon" placeholder="Icon name" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
-              <input name="color" placeholder="Color" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
-              <button className="rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Add</button>
-            </form>
-          ) : null}
         </div>
       </section>
     </main>

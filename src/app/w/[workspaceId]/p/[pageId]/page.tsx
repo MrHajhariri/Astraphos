@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/sidebar";
 import { LoreEditor } from "@/components/editor";
 import { Backlinks, type Backlink } from "@/components/backlinks";
 import { PageMetadataPanel } from "@/components/metadata-panel";
+import { ConfirmButton } from "@/components/confirm-button";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { toggleFavoriteAction, createPageAction, archivePageAction, deletePageAction } from "@/lib/actions";
@@ -78,7 +79,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
             <form action={deletePageAction}>
               <input type="hidden" name="workspaceId" value={workspaceId} />
               <input type="hidden" name="pageId" value={page.id} />
-              <button className="rounded-lg border border-red-300 bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 dark:border-red-900">Delete</button>
+              <ConfirmButton confirmLabel="Confirm delete" className="rounded-lg border border-red-300 bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 dark:border-red-900">Delete</ConfirmButton>
             </form>
           </div>
         </div>

@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { Save } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { updateVaultFileAction } from "@/lib/actions";
 
 export function VaultEditor({ workspaceId, file }: { workspaceId: string; file: { id: string; title: string; fileName: string; content: string } }) {
   const [title, setTitle] = useState(file.title);
   const [content, setContent] = useState(file.content);
+  const [mode, setMode] = useState<"edit" | "preview" | "split">("split");
   const [pending, startTransition] = useTransition();
 
   function save() {
@@ -27,7 +29,27 @@ export function VaultEditor({ workspaceId, file }: { workspaceId: string; file: 
         </button>
       </div>
 
-      <textarea value={content} onChange={(event) => setContent(event.target.value)} spellCheck className="min-h-[65vh] w-full resize-y rounded-2xl border border-zinc-200 bg-zinc-50/60 px-5 py-4 font-mono text-sm leading-7 text-zinc-900 outline-none focus:border-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-200" placeholder="# Start writing Markdown..." />
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-2">
+          {(["edit", "preview", "split"] as const).map((item) => (
+            <button key={item} type="button" onClick={() => setMode(item)} className={`rounded-full px-3 py-1.5 text-sm capitalize ${mode === item ? "bg-zinc-950 text-white dark:bg-zinc-50 dark:text-zinc-950" : "border border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"}`}>
+              {item}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-zinc-500">{content.trim().split(/\s+/).filter(Boolean).length} words · {content.length} chars</p>
+      </div>
+
+      <div className={`grid gap-4 ${mode === "split" ? "lg:grid-cols-2" : ""}`}>
+        {mode !== "preview" ? (
+          <textarea value={content} onChange={(event) => setContent(event.target.value)} spellCheck className="min-h-[65vh] w-full resize-y rounded-2xl border border-zinc-200 bg-zinc-50/60 px-5 py-4 font-mono text-sm leading-7 text-zinc-900 outline-none focus:border-zinc-950 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-200" placeholder="# Start writing Markdown..." />
+        ) : null}
+        {mode !== "edit" ? (
+          <div className="prose prose-zinc min-h-[65vh] max-w-none rounded-2xl border border-zinc-200 bg-white px-5 py-4 dark:prose-invert dark:border-zinc-800 dark:bg-zinc-950">
+            <ReactMarkdown>{content}</ReactMarkdown>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

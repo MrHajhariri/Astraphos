@@ -1,6 +1,6 @@
 # Astraphos
 
-**Version:** `v0.4.0 - Organization And Node Types`
+**Version:** `v0.5.0 - Polish, Management, And Reliability`
 
 Astraphos is an open-source, AI-ready knowledge workspace for people who want to own their notes, documents, and project knowledge.
 
@@ -12,24 +12,23 @@ The MVP focuses on the core Notion-like foundation: authenticated workspaces, ne
 
 ## Status
 
-Astraphos `v0.4.0 - Organization And Node Types` is currently an MVP. It is usable for local/self-hosted personal workspaces, but it is not yet a polished production SaaS.
+Astraphos `v0.5.0 - Polish, Management, And Reliability` is currently an MVP. It is usable for local/self-hosted personal workspaces, but it is not yet a polished production SaaS.
 
 Current priorities:
 
 - Stabilize the document model and editing experience
 - Polish graph navigation, animation, and large-workspace performance
-- Improve metadata workflows for tags, folders, and node types
+- Improve reliability, migration workflows, and larger-workspace performance
 - Prepare the app for future collaboration and AI features
 
-## What's New In v0.4.0
+## What's New In v0.5.0
 
-- Tags for notes and Vault files
-- Vault folders for organizing `.md` files
-- Custom node types with workspace-level defaults and creation
-- Graph filters by tag, folder, node type, content source, connectivity, and title search
-- Markdown import into the Vault
-- Single-file Markdown export from the Vault
-- Direct delete button for normal notes
+- Dedicated management screens for tags, Vault folders, and node types
+- Safer destructive actions with confirm-before-submit buttons
+- Expanded search across notes, Vault files, tags, folders, and node types
+- Vault Markdown preview with edit, preview, and split modes
+- Graph empty states and degree-threshold filtering
+- Shared workspace authorization helpers for future action hardening
 
 ## Features
 
@@ -43,6 +42,7 @@ Current priorities:
 - Wiki-style `[[Page Name]]` links across notes and Vault files
 - Automatic backlinks
 - Tags for notes and Vault files
+- Dedicated tags, folders, and node type management screens
 - Custom graph node types
 - Interactive knowledge graph with tag, folder, node type, source, and connectivity filters
 - Most-connected pages/files view
@@ -51,6 +51,7 @@ Current priorities:
 - Markdown shortcuts for common editor actions
 - Headings, paragraphs, lists, quotes, code blocks, links, and images
 - Search across page titles and extracted document text
+- Search across Vault files and metadata
 - Local or S3-compatible image uploads with server-side validation
 - Page favorites
 - Page templates with workspace-level management
@@ -222,7 +223,8 @@ Near-term:
 
 - Full drag-to-reparent support in the sidebar
 - Template body editing with the rich-text editor
-- Better tag/folder/node-type management screens
+- Prisma migrations for production schema evolution
+- Better wiki-link autocomplete and unresolved link handling
 - Stronger storage management, including asset deletion and signed/private URLs
 - More complete workspace administration and member management
 

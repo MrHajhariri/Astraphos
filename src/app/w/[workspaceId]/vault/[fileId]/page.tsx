@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ConfirmButton } from "@/components/confirm-button";
 import { Sidebar } from "@/components/sidebar";
 import { VaultEditor } from "@/components/vault-editor";
 import { Backlinks, type Backlink } from "@/components/backlinks";
@@ -59,7 +60,7 @@ export default async function VaultFilePage({ params }: { params: Promise<{ work
             <form action={deleteVaultFileAction}>
               <input type="hidden" name="workspaceId" value={workspaceId} />
               <input type="hidden" name="fileId" value={file.id} />
-              <button className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Delete</button>
+              <ConfirmButton confirmLabel="Confirm delete" className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-red-950 dark:text-red-300 dark:hover:bg-red-950/40">Delete</ConfirmButton>
             </form>
           </div>
         </div>

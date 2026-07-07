@@ -58,3 +58,18 @@ export async function requireUser() {
   if (!user) redirect("/login");
   return user;
 }
+
+export async function requireWorkspaceMember(workspaceId: string) {
+  const user = await requireUser();
+  const membership = await prisma.workspaceMember.findUnique({
+    where: { userId_workspaceId: { userId: user.id, workspaceId } },
+  });
+  if (!membership) throw new Error("Workspace not found");
+  return { user, membership };
+}
+
+export async function requireWorkspaceOwner(workspaceId: string) {
+  const { user, membership } = await requireWorkspaceMember(workspaceId);
+  if (membership.role !== "OWNER") throw new Error("Workspace not found");
+  return { user, membership };
+}
