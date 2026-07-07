@@ -157,6 +157,34 @@ export async function createPageAction(formData: FormData) {
   redirect(`/w/${workspaceId}/p/${page.id}`);
 }
 
+export async function createWikiTargetAction(formData: FormData) {
+  const user = await requireUser();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const targetType = String(formData.get("targetType") ?? "PAGE");
+  const returnTo = String(formData.get("returnTo") ?? "");
+  const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
+  if (!membership) throw new Error("Workspace not found");
+  if (!title) return;
+
+  if (targetType === "VAULT_FILE") {
+    const file = await prisma.vaultFile.create({
+      data: { title, fileName: await nextVaultFileName(workspaceId, `${title}.md`), content: `# ${title}\n`, plainText: title, workspaceId },
+    });
+    redirect(returnTo || `/w/${workspaceId}/vault/${file.id}`);
+  }
+
+  const lastSibling = await prisma.page.findFirst({
+    where: { workspaceId, parentId: null, archivedAt: null, deletedAt: null },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  });
+  const page = await prisma.page.create({
+    data: { title, workspaceId, position: (lastSibling?.position ?? -1) + 1, content: emptyDoc, plainText: title },
+  });
+  redirect(returnTo || `/w/${workspaceId}/p/${page.id}`);
+}
+
 export async function updatePageAction(input: {
   workspaceId: string;
   pageId: string;
@@ -355,6 +383,32 @@ export async function updateTemplateAction(formData: FormData) {
   revalidatePath(`/w/${workspaceId}/templates`);
 }
 
+export async function updateTemplateContentAction(input: { workspaceId: string; templateId: string; name: string; description: string; content: JSONContent }) {
+  await requireWorkspaceMember(input.workspaceId);
+  await prisma.template.update({
+    where: { id: input.templateId, workspaceId: input.workspaceId },
+    data: {
+      name: input.name.trim() || "Untitled template",
+      description: input.description.trim() || null,
+      content: input.content,
+    },
+  });
+  revalidatePath(`/w/${input.workspaceId}/templates/${input.templateId}`);
+  revalidatePath(`/w/${input.workspaceId}/templates`);
+}
+
+export async function createTemplateFromPageAction(formData: FormData) {
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const pageId = String(formData.get("pageId") ?? "");
+  await requireWorkspaceMember(workspaceId);
+  const page = await prisma.page.findFirst({ where: { id: pageId, workspaceId, archivedAt: null, deletedAt: null } });
+  if (!page) throw new Error("Page not found");
+  const template = await prisma.template.create({
+    data: { name: page.title || "Untitled template", description: "Created from an existing note.", content: page.content as JSONContent, workspaceId },
+  });
+  redirect(`/w/${workspaceId}/templates/${template.id}`);
+}
+
 export async function deleteTemplateAction(formData: FormData) {
   const user = await requireUser();
   const workspaceId = String(formData.get("workspaceId") ?? "");
@@ -512,10 +566,18 @@ export async function createNodeTypeAction(formData: FormData) {
   const icon = String(formData.get("icon") ?? "FileText").trim() || "FileText";
   const membership = await prisma.workspaceMember.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId } } });
   if (!membership || membership.role !== "OWNER") throw new Error("Workspace not found");
-  if (!name) throw new Error("Node type name is required");
+  if (!name) {
+    revalidatePath(`/w/${workspaceId}/node-types`);
+    return;
+  }
 
-  await prisma.nodeType.create({ data: { name, slug: slugify(name), color, icon, workspaceId } });
+  await prisma.nodeType.upsert({
+    where: { workspaceId_slug: { workspaceId, slug: slugify(name) } },
+    update: { name, color, icon },
+    create: { name, slug: slugify(name), color, icon, workspaceId },
+  });
   revalidatePath(`/w/${workspaceId}/settings`);
+  revalidatePath(`/w/${workspaceId}/node-types`);
 }
 
 export async function updateTagAction(formData: FormData) {

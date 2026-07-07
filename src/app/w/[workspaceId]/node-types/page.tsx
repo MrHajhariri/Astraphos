@@ -33,7 +33,7 @@ export default async function NodeTypesPage({ params }: { params: Promise<{ work
         {canEdit ? (
           <form action={createNodeTypeAction} className="mt-8 grid gap-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 md:grid-cols-[1fr_1fr_1fr_auto]">
             <input type="hidden" name="workspaceId" value={workspaceId} />
-            <input name="name" placeholder="Node type" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
+            <input name="name" required placeholder="Node type" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
             <input name="icon" placeholder="Icon" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
             <input name="color" placeholder="Color" className="rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-zinc-800 dark:focus:border-zinc-200" />
             <button className="rounded-lg bg-zinc-950 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-950">Create</button>

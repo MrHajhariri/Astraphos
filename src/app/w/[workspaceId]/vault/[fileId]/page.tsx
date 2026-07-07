@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Sidebar } from "@/components/sidebar";
@@ -6,8 +5,10 @@ import { VaultEditor } from "@/components/vault-editor";
 import { Backlinks, type Backlink } from "@/components/backlinks";
 import { VaultMetadataPanel } from "@/components/metadata-panel";
 import { deleteVaultFileAction } from "@/lib/actions";
+import { UnresolvedLinks } from "@/components/unresolved-links";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { unresolvedWikiLinks, wikiLinkSnippet } from "@/lib/wiki-links";
 
 export const dynamic = "force-dynamic";
 
@@ -35,19 +36,20 @@ export default async function VaultFilePage({ params }: { params: Promise<{ work
   const sourcePageIds = incomingEdges.filter((edge) => edge.sourceType === "PAGE").map((edge) => edge.sourceId);
   const sourceVaultIds = incomingEdges.filter((edge) => edge.sourceType === "VAULT_FILE").map((edge) => edge.sourceId);
   const [sourcePages, sourceVaultFiles] = await Promise.all([
-    prisma.page.findMany({ where: { id: { in: sourcePageIds }, workspaceId, archivedAt: null, deletedAt: null }, select: { id: true, title: true } }),
-    prisma.vaultFile.findMany({ where: { id: { in: sourceVaultIds }, workspaceId }, select: { id: true, title: true } }),
+    prisma.page.findMany({ where: { id: { in: sourcePageIds }, workspaceId, archivedAt: null, deletedAt: null }, select: { id: true, title: true, plainText: true } }),
+    prisma.vaultFile.findMany({ where: { id: { in: sourceVaultIds }, workspaceId }, select: { id: true, title: true, content: true } }),
   ]);
   const backlinks = incomingEdges.reduce<Backlink[]>((items, edge) => {
     if (edge.sourceType === "PAGE") {
       const source = sourcePages.find((item) => item.id === edge.sourceId);
-      if (source) items.push({ id: edge.id, sourceType: "PAGE", title: source.title, href: `/w/${workspaceId}/p/${source.id}` });
+      if (source) items.push({ id: edge.id, sourceType: "PAGE", title: source.title, href: `/w/${workspaceId}/p/${source.id}`, snippet: wikiLinkSnippet(source.plainText, file.title) });
       return items;
     }
     const source = sourceVaultFiles.find((item) => item.id === edge.sourceId);
-    if (source) items.push({ id: edge.id, sourceType: "VAULT_FILE", title: source.title, href: `/w/${workspaceId}/vault/${source.id}` });
+    if (source) items.push({ id: edge.id, sourceType: "VAULT_FILE", title: source.title, href: `/w/${workspaceId}/vault/${source.id}`, snippet: wikiLinkSnippet(source.content, file.title) });
     return items;
   }, []);
+  const unresolvedLinks = unresolvedWikiLinks(file.content, [...membership.workspace.pages.map((item) => item.title), ...membership.workspace.vaultFiles.flatMap((item) => [item.title, item.fileName])]);
 
   return (
     <main className="grid min-h-dvh grid-cols-1 md:grid-cols-[18rem_1fr]">
@@ -56,7 +58,7 @@ export default async function VaultFilePage({ params }: { params: Promise<{ work
         <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-2 dark:border-zinc-800">
           <div className="text-sm text-zinc-500">/vault/{file.fileName}</div>
           <div className="flex gap-2">
-            <Link href={`/w/${workspaceId}/vault/${file.id}/export`} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Export</Link>
+            <a href={`/w/${workspaceId}/vault/${file.id}/export`} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Export</a>
             <form action={deleteVaultFileAction}>
               <input type="hidden" name="workspaceId" value={workspaceId} />
               <input type="hidden" name="fileId" value={file.id} />
@@ -66,6 +68,7 @@ export default async function VaultFilePage({ params }: { params: Promise<{ work
         </div>
         <VaultEditor workspaceId={workspaceId} file={{ id: file.id, title: file.title, fileName: file.fileName, content: file.content }} />
         <VaultMetadataPanel workspaceId={workspaceId} file={file} folders={membership.workspace.vaultFolders} nodeTypes={membership.workspace.nodeTypes} />
+        <UnresolvedLinks workspaceId={workspaceId} links={unresolvedLinks} returnTo={`/w/${workspaceId}/vault/${file.id}`} />
         <Backlinks backlinks={backlinks} />
       </section>
     </main>

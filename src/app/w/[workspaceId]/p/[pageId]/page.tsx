@@ -4,9 +4,11 @@ import { LoreEditor } from "@/components/editor";
 import { Backlinks, type Backlink } from "@/components/backlinks";
 import { PageMetadataPanel } from "@/components/metadata-panel";
 import { ConfirmButton } from "@/components/confirm-button";
+import { UnresolvedLinks } from "@/components/unresolved-links";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { toggleFavoriteAction, createPageAction, archivePageAction, deletePageAction } from "@/lib/actions";
+import { unresolvedWikiLinks, wikiLinkSnippet } from "@/lib/wiki-links";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
       workspace: {
         include: {
           pages: { where: { archivedAt: null, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
+          vaultFiles: { orderBy: { title: "asc" } },
           templates: { orderBy: { name: "asc" } },
           nodeTypes: { orderBy: { name: "asc" } },
         },
@@ -38,19 +41,20 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
   const sourcePageIds = incomingEdges.filter((edge) => edge.sourceType === "PAGE").map((edge) => edge.sourceId);
   const sourceVaultIds = incomingEdges.filter((edge) => edge.sourceType === "VAULT_FILE").map((edge) => edge.sourceId);
   const [sourcePages, sourceVaultFiles] = await Promise.all([
-    prisma.page.findMany({ where: { id: { in: sourcePageIds }, workspaceId, archivedAt: null, deletedAt: null }, select: { id: true, title: true } }),
-    prisma.vaultFile.findMany({ where: { id: { in: sourceVaultIds }, workspaceId }, select: { id: true, title: true } }),
+    prisma.page.findMany({ where: { id: { in: sourcePageIds }, workspaceId, archivedAt: null, deletedAt: null }, select: { id: true, title: true, plainText: true } }),
+    prisma.vaultFile.findMany({ where: { id: { in: sourceVaultIds }, workspaceId }, select: { id: true, title: true, content: true } }),
   ]);
   const backlinks = incomingEdges.reduce<Backlink[]>((items, edge) => {
     if (edge.sourceType === "PAGE") {
       const source = sourcePages.find((item) => item.id === edge.sourceId);
-      if (source) items.push({ id: edge.id, sourceType: "PAGE", title: source.title, href: `/w/${workspaceId}/p/${source.id}` });
+      if (source) items.push({ id: edge.id, sourceType: "PAGE", title: source.title, href: `/w/${workspaceId}/p/${source.id}`, snippet: wikiLinkSnippet(source.plainText, page.title) });
       return items;
     }
     const source = sourceVaultFiles.find((item) => item.id === edge.sourceId);
-    if (source) items.push({ id: edge.id, sourceType: "VAULT_FILE", title: source.title, href: `/w/${workspaceId}/vault/${source.id}` });
+    if (source) items.push({ id: edge.id, sourceType: "VAULT_FILE", title: source.title, href: `/w/${workspaceId}/vault/${source.id}`, snippet: wikiLinkSnippet(source.content, page.title) });
     return items;
   }, []);
+  const unresolvedLinks = unresolvedWikiLinks(page.plainText, [...membership.workspace.pages.map((item) => item.title), ...membership.workspace.vaultFiles.flatMap((item) => [item.title, item.fileName])]);
 
   return (
     <main className="grid min-h-dvh grid-cols-1 md:grid-cols-[18rem_1fr]">
@@ -83,8 +87,9 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
             </form>
           </div>
         </div>
-        <LoreEditor workspaceId={workspaceId} page={{ id: page.id, title: page.title, content: page.content as never }} pages={membership.workspace.pages.map(({ id, title }) => ({ id, title }))} />
+        <LoreEditor workspaceId={workspaceId} page={{ id: page.id, title: page.title, content: page.content as never }} pages={membership.workspace.pages.map(({ id, title }) => ({ id, title }))} wikiTargets={[...membership.workspace.pages.map(({ id, title }) => ({ id, title, type: "PAGE" as const })), ...membership.workspace.vaultFiles.map(({ id, title }) => ({ id, title, type: "VAULT_FILE" as const }))]} />
         <PageMetadataPanel workspaceId={workspaceId} page={pageMetadata} nodeTypes={membership.workspace.nodeTypes} />
+        <UnresolvedLinks workspaceId={workspaceId} links={unresolvedLinks} returnTo={`/w/${workspaceId}/p/${page.id}`} />
         <Backlinks backlinks={backlinks} />
         <div className="mx-auto max-w-4xl px-5 pb-10 md:px-10">
           <div className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">

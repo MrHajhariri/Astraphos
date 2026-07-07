@@ -11,6 +11,7 @@ import { Code, Heading1, Heading2, ImageIcon, List, ListOrdered, Quote, Save } f
 import { updatePageAction, uploadAssetAction } from "@/lib/actions";
 
 type RelatedPage = { id: string; title: string };
+type WikiTarget = { id: string; title: string; type: "PAGE" | "VAULT_FILE" };
 type SlashCommandId = "paragraph" | "h1" | "h2" | "bullet" | "ordered" | "quote" | "code" | "image";
 
 const slashItems: { id: SlashCommandId; label: string; hint: string }[] = [
@@ -28,15 +29,19 @@ export function LoreEditor({
   workspaceId,
   page,
   pages,
+  wikiTargets,
 }: {
   workspaceId: string;
   page: { id: string; title: string; content: JSONContent };
   pages: RelatedPage[];
+  wikiTargets?: WikiTarget[];
 }) {
   const [pending, startTransition] = useTransition();
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [wikiQuery, setWikiQuery] = useState<string | null>(null);
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0);
+  const [selectedWikiIndex, setSelectedWikiIndex] = useState(0);
   const uploadFormRef = useRef<HTMLFormElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const editor = useEditor({
@@ -57,12 +62,16 @@ export function LoreEditor({
       const { $from } = editor.state.selection;
       const textBefore = $from.parent.textBetween(0, $from.parentOffset, undefined, " ");
       const match = textBefore.match(/(?:^|\s)\/([a-z0-9 ]*)$/i);
+      const wikiMatch = textBefore.match(/\[\[([^\]]*)$/i);
       setSlashQuery(match ? match[1] : null);
+      setWikiQuery(wikiMatch ? wikiMatch[1] : null);
       setSelectedSlashIndex(0);
+      setSelectedWikiIndex(0);
     },
   });
 
   const filteredSlashItems = slashQuery === null ? [] : slashItems.filter((item) => item.label.toLowerCase().includes(slashQuery.toLowerCase()));
+  const filteredWikiTargets = wikiQuery === null ? [] : (wikiTargets ?? []).filter((target) => target.title.toLowerCase().includes(wikiQuery.toLowerCase())).slice(0, 8);
 
   function save(formData: FormData) {
     if (!editor) return;
@@ -109,6 +118,25 @@ export function LoreEditor({
   }
 
   function handleEditorKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (wikiQuery !== null && filteredWikiTargets.length) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setSelectedWikiIndex((index) => (index + 1) % filteredWikiTargets.length);
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setSelectedWikiIndex((index) => (index - 1 + filteredWikiTargets.length) % filteredWikiTargets.length);
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        insertWikiTarget(filteredWikiTargets[selectedWikiIndex].title);
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setWikiQuery(null);
+      }
+      return;
+    }
     if (slashQuery === null || filteredSlashItems.length === 0) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -127,6 +155,17 @@ export function LoreEditor({
       event.preventDefault();
       setSlashQuery(null);
     }
+  }
+
+  function insertWikiTarget(title: string) {
+    if (!editor) return;
+    const { $from } = editor.state.selection;
+    const textBefore = $from.parent.textBetween(0, $from.parentOffset, undefined, " ");
+    const start = textBefore.lastIndexOf("[[");
+    if (start >= 0) {
+      editor.chain().focus().deleteRange({ from: $from.start() + start, to: $from.pos }).insertContent(`[[${title}]]`).run();
+    }
+    setWikiQuery(null);
   }
 
   return (
@@ -153,6 +192,16 @@ export function LoreEditor({
         {uploadError ? <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">{uploadError}</p> : null}
 
         <div className="relative">
+          {wikiQuery !== null && filteredWikiTargets.length ? (
+            <div className="absolute left-0 top-2 z-30 w-80 overflow-hidden rounded-xl border border-cyan-200 bg-white shadow-xl dark:border-cyan-900 dark:bg-zinc-950">
+              {filteredWikiTargets.map((target, index) => (
+                <button key={`${target.type}:${target.id}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => insertWikiTarget(target.title)} className={`block w-full px-3 py-2 text-left ${index === selectedWikiIndex ? "bg-cyan-50 dark:bg-cyan-950/40" : "hover:bg-zinc-50 dark:hover:bg-zinc-900"}`}>
+                  <span className="block text-sm font-medium text-zinc-950 dark:text-zinc-50">{target.title}</span>
+                  <span className="block text-xs text-cyan-600 dark:text-cyan-300">{target.type === "PAGE" ? "Note" : "Vault"}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {slashQuery !== null && filteredSlashItems.length ? (
             <div className="absolute left-0 top-2 z-20 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
               {filteredSlashItems.map((item, index) => (

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
-import { createPageAction, createTemplateAction, deleteTemplateAction, updateTemplateAction } from "@/lib/actions";
+import { createPageAction, createTemplateAction, createTemplateFromPageAction, deleteTemplateAction, updateTemplateAction } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -71,6 +72,7 @@ export default async function TemplatesPage({ params }: { params: Promise<{ work
                   <input type="hidden" name="templateId" value={template.id} />
                   <button className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Create page</button>
                 </form>
+                <Link href={`/w/${workspaceId}/templates/${template.id}`} className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Edit body</Link>
                 <form action={deleteTemplateAction}>
                   <input type="hidden" name="workspaceId" value={workspaceId} />
                   <input type="hidden" name="templateId" value={template.id} />
@@ -85,6 +87,19 @@ export default async function TemplatesPage({ params }: { params: Promise<{ work
               <p className="mt-1 text-sm text-zinc-500">Create one above to speed up future pages.</p>
             </div>
           ) : null}
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <p className="mb-3 text-sm font-medium text-zinc-950 dark:text-zinc-50">Create template from note</p>
+          <div className="flex flex-wrap gap-2">
+            {membership.workspace.pages.map((page) => (
+              <form key={page.id} action={createTemplateFromPageAction}>
+                <input type="hidden" name="workspaceId" value={workspaceId} />
+                <input type="hidden" name="pageId" value={page.id} />
+                <button className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">{page.title || "Untitled"}</button>
+              </form>
+            ))}
+          </div>
         </div>
       </section>
     </main>

@@ -1,6 +1,6 @@
 # Astraphos
 
-**Version:** `v0.5.0 - Polish, Management, And Reliability`
+**Version:** `v0.6.0 - Editing Intelligence And Link Workflows`
 
 Astraphos is an open-source, AI-ready knowledge workspace for people who want to own their notes, documents, and project knowledge.
 
@@ -12,23 +12,23 @@ The MVP focuses on the core Notion-like foundation: authenticated workspaces, ne
 
 ## Status
 
-Astraphos `v0.5.0 - Polish, Management, And Reliability` is currently an MVP. It is usable for local/self-hosted personal workspaces, but it is not yet a polished production SaaS.
+Astraphos `v0.6.0 - Editing Intelligence And Link Workflows` is currently an MVP. It is usable for local/self-hosted personal workspaces, but it is not yet a polished production SaaS.
 
 Current priorities:
 
 - Stabilize the document model and editing experience
-- Polish graph navigation, animation, and large-workspace performance
+- Polish wiki-link authoring, graph navigation, and template workflows
 - Improve reliability, migration workflows, and larger-workspace performance
 - Prepare the app for future collaboration and AI features
 
-## What's New In v0.5.0
+## What's New In v0.6.0
 
-- Dedicated management screens for tags, Vault folders, and node types
-- Safer destructive actions with confirm-before-submit buttons
-- Expanded search across notes, Vault files, tags, folders, and node types
-- Vault Markdown preview with edit, preview, and split modes
-- Graph empty states and degree-threshold filtering
-- Shared workspace authorization helpers for future action hardening
+- Wiki-link autocomplete while writing rich-text notes
+- Unresolved wiki-link panels with quick-create actions for notes and Vault files
+- Backlinks with contextual snippets
+- Graph focus mode with selected-node details and neighborhood filtering
+- Vault ZIP export with folder paths
+- Rich-text template body editing and create-template-from-note workflow
 
 ## Features
 
@@ -40,11 +40,14 @@ Current priorities:
 - Markdown Vault for database-backed `.md` files
 - Vault folders and Markdown import/export
 - Wiki-style `[[Page Name]]` links across notes and Vault files
+- Wiki-link autocomplete and unresolved-link quick creation
 - Automatic backlinks
+- Backlinks with context snippets
 - Tags for notes and Vault files
 - Dedicated tags, folders, and node type management screens
 - Custom graph node types
 - Interactive knowledge graph with tag, folder, node type, source, and connectivity filters
+- Graph focus and neighborhood mode
 - Most-connected pages/files view
 - Rich-text editing powered by TipTap
 - Slash-command menu for common editor blocks
@@ -55,6 +58,7 @@ Current priorities:
 - Local or S3-compatible image uploads with server-side validation
 - Page favorites
 - Page templates with workspace-level management
+- Rich-text template body editing
 - Workspace settings for owner-managed name and slug updates
 - Manual relationships between pages
 - Dark mode toggle
@@ -222,9 +226,8 @@ Note: a local non-Docker `npm run build` currently fails in this environment wit
 Near-term:
 
 - Full drag-to-reparent support in the sidebar
-- Template body editing with the rich-text editor
 - Prisma migrations for production schema evolution
-- Better wiki-link autocomplete and unresolved link handling
+- Better import result summaries and save/error feedback
 - Stronger storage management, including asset deletion and signed/private URLs
 - More complete workspace administration and member management
 

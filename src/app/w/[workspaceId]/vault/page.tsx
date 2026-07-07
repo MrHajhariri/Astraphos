@@ -46,6 +46,7 @@ export default async function VaultPage({ params }: { params: Promise<{ workspac
               <input name="files" type="file" multiple accept=".md,text/markdown" className="max-w-56 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800" />
               <button className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900">Import</button>
             </form>
+            <a href={`/w/${workspaceId}/vault/export`} className="justify-self-start rounded-lg border border-cyan-200 px-4 py-2 text-sm text-cyan-700 hover:bg-cyan-50 dark:border-cyan-900 dark:text-cyan-200 dark:hover:bg-cyan-950/40">Export ZIP</a>
           </div>
         </div>
 

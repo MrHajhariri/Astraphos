@@ -5,6 +5,7 @@ export type Backlink = {
   sourceType: "PAGE" | "VAULT_FILE";
   title: string;
   href: string;
+  snippet?: string;
 };
 
 export function Backlinks({ backlinks }: { backlinks: Backlink[] }) {
@@ -21,6 +22,7 @@ export function Backlinks({ backlinks }: { backlinks: Backlink[] }) {
               <Link key={backlink.id} href={backlink.href} className="rounded-xl border border-zinc-200 px-3 py-2 text-sm transition hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md dark:border-zinc-800 dark:hover:border-violet-700">
                 <span className="mr-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-950 dark:text-violet-200">{backlink.sourceType === "PAGE" ? "Note" : "Vault"}</span>
                 <span className="text-zinc-700 dark:text-zinc-200">{backlink.title || "Untitled"}</span>
+                {backlink.snippet ? <span className="mt-2 block line-clamp-2 text-xs text-zinc-500">{backlink.snippet}</span> : null}
               </Link>
             ))}
           </div>

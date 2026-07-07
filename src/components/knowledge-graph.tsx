@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
 
@@ -26,7 +26,6 @@ type GraphLink = {
 type GraphMode = "all" | "notes" | "vault";
 
 export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: GraphLink[] }) {
-  const router = useRouter();
   const graphRef = useRef<{ zoomToFit: (duration?: number, padding?: number) => void } | null>(null);
   const [mode, setMode] = useState<GraphMode>("all");
   const [query, setQuery] = useState("");
@@ -35,6 +34,8 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
   const [folderFilter, setFolderFilter] = useState("");
   const [nodeTypeFilter, setNodeTypeFilter] = useState("");
   const [degreeThreshold, setDegreeThreshold] = useState(0);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [neighborhoodOnly, setNeighborhoodOnly] = useState(false);
   const tags = useMemo(() => Array.from(new Set(nodes.flatMap((node) => node.tags))).sort(), [nodes]);
   const folders = useMemo(() => Array.from(new Set(nodes.map((node) => node.folder).filter(Boolean) as string[])).sort(), [nodes]);
   const nodeTypes = useMemo(() => Array.from(new Set(nodes.map((node) => node.nodeType).filter(Boolean) as string[])).sort(), [nodes]);
@@ -49,6 +50,10 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
       if (tagFilter && !node.tags.includes(tagFilter)) return false;
       if (folderFilter && node.folder !== folderFilter) return false;
       if (nodeTypeFilter && node.nodeType !== nodeTypeFilter) return false;
+      if (neighborhoodOnly && selectedNodeId) {
+        const connected = links.some((link) => (link.source === selectedNodeId && link.target === node.id) || (link.target === selectedNodeId && link.source === node.id));
+        if (node.id !== selectedNodeId && !connected) return false;
+      }
       return true;
     });
     const visibleIds = new Set(visibleNodes.map((node) => node.id));
@@ -56,9 +61,10 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
       nodes: visibleNodes,
       links: links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target)),
     };
-  }, [connectedOnly, degreeThreshold, folderFilter, links, mode, nodeTypeFilter, nodes, query, tagFilter]);
+  }, [connectedOnly, degreeThreshold, folderFilter, links, mode, neighborhoodOnly, nodeTypeFilter, nodes, query, selectedNodeId, tagFilter]);
 
   const mostConnected = useMemo(() => [...nodes].sort((a, b) => b.degree - a.degree).slice(0, 8), [nodes]);
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
@@ -72,6 +78,9 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
             ))}
             <button onClick={() => setConnectedOnly((value) => !value)} className={`rounded-full px-3 py-1.5 text-sm transition ${connectedOnly ? "bg-cyan-300 text-zinc-950" : "bg-white/10 text-zinc-200 hover:bg-white/15"}`}>
               Connected only
+            </button>
+            <button disabled={!selectedNodeId} onClick={() => setNeighborhoodOnly((value) => !value)} className={`rounded-full px-3 py-1.5 text-sm transition disabled:opacity-40 ${neighborhoodOnly ? "bg-violet-300 text-zinc-950" : "bg-white/10 text-zinc-200 hover:bg-white/15"}`}>
+              Neighborhood
             </button>
             <select value={nodeTypeFilter} onChange={(event) => setNodeTypeFilter(event.target.value)} className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white outline-none">
               <option value="">All types</option>
@@ -128,15 +137,22 @@ export function KnowledgeGraph({ nodes, links }: { nodes: GraphNode[]; links: Gr
                 ctx.fillText(graphNode.title, graphNode.x + radius + 4, graphNode.y + 4);
               }
             }}
-            onNodeClick={(node) => router.push((node as GraphNode).href)}
+            onNodeClick={(node) => setSelectedNodeId((node as GraphNode).id)}
           /> : <div className="flex h-full items-center justify-center px-6 text-center text-sm text-zinc-300">No graph nodes match the current filters.</div>}
         </div>
       </div>
       <aside className="rounded-3xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
         <p className="text-sm font-medium text-zinc-950 dark:text-zinc-50">Most connected</p>
+        {selectedNode ? (
+          <div className="mt-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-900 dark:bg-cyan-950/20">
+            <p className="text-sm font-medium text-zinc-950 dark:text-zinc-50">{selectedNode.title}</p>
+            <p className="mt-1 text-xs text-zinc-500">{selectedNode.nodeType ?? (selectedNode.type === "PAGE" ? "Note" : "Vault")}</p>
+            <Link href={selectedNode.href} className="mt-3 inline-flex rounded-lg bg-zinc-950 px-3 py-1.5 text-sm text-white dark:bg-zinc-50 dark:text-zinc-950">Open</Link>
+          </div>
+        ) : null}
         <div className="mt-3 space-y-2">
           {mostConnected.map((node) => (
-            <button key={node.id} onClick={() => router.push(node.href)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2 text-left text-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md dark:border-zinc-800 dark:hover:border-cyan-700">
+            <button key={node.id} onClick={() => setSelectedNodeId(node.id)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2 text-left text-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md dark:border-zinc-800 dark:hover:border-cyan-700">
               <span className="min-w-0 truncate text-zinc-700 dark:text-zinc-200">{node.title}</span>
               <span className={`rounded-full px-2 py-0.5 text-xs ${node.type === "PAGE" ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200" : "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200"}`}>{node.degree}</span>
             </button>
